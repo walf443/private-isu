@@ -9,6 +9,7 @@ module Isuconp
     use Rack::Session::Cookie, secret: ENV['ISUCONP_SESSION_SECRET'] || 'sendagaya'
     use Rack::Flash
     set :public_folder, File.expand_path('../../public', __FILE__)
+    set :absolute_redirects, true
 
     helpers do
       def config
@@ -152,8 +153,8 @@ module Isuconp
     end
 
     get '/' do
-      posts = db.query('SELECT * FROM posts ORDER BY created_at DESC')
-      cs = db.query('SELECT * FROM comments ORDER BY created_at DESC')
+      posts = db.query('SELECT * FROM posts ORDER BY id DESC LIMIT 30')
+      cs = db.prepare('SELECT * FROM comments WHERE post_id IN (%s)' % [posts.map { '?' }.join(',')]).execute(*posts.map {|i| i[:id]})
       comments = {}
       cs.each do |c|
         if !comments[c[:post_id]]
@@ -172,7 +173,8 @@ module Isuconp
         user = { id: 0 }
       end
 
-      users_raw = db.query('SELECT * FROM `users`')
+      user_ids = [posts.map {|i| i[:user_id] }, comments.map {|k,v| v.map {|i| i[:user_id] }}].flatten.uniq
+      users_raw = db.prepare('SELECT * FROM `users` WHERE id IN (%s)' % [user_ids.map { '?' }.join(',')]).execute(*user_ids)
       users = {}
       users_raw.each do |u|
         users[u[:id]] = u
@@ -193,25 +195,33 @@ module Isuconp
 
       if params['file']
         mime = ''
+        ext = ''
         # 投稿のContent-Typeからファイルのタイプを決定する
         if params["file"][:type].include? "jpeg"
           mime = "image/jpeg"
+          ext = 'jpg'
         elsif params["file"][:type].include? "png"
           mime = "image/png"
+          ext = 'png'
         elsif params["file"][:type].include? "gif"
           mime = "image/gif"
+          ext = 'gif'
         else
           flash[:notice] = '投稿できる画像形式はjpgとpngとgifだけです'
           redirect '/', 302
         end
 
-        query = 'INSERT INTO `posts` (`user_id`, `mime`, `imgdata`, `body`) VALUES (?,?,?,?)'
-        db.prepare(query).execute(
+        query = 'INSERT INTO `posts` (`user_id`, `mime`, `body`) VALUES (?,?,?)'
+        binary = params["file"][:tempfile].read
+        result = db.prepare(query).execute(
           session[:user][:id],
           mime,
-          params["file"][:tempfile].read,
           params["body"],
         )
+        result = db.prepare('SELECT LAST_INSERT_ID() AS id').execute().first
+        File.open("#{settings.public_folder}/image/#{result[:id]}", 'wb') do |f|
+          f.print(binary)
+        end
 
         redirect '/', 302
       else
@@ -220,16 +230,22 @@ module Isuconp
       end
     end
 
-    get '/image/:id' do
-      if params[:id].to_i == 0
-        return ""
-      end
+    # get '/image/:id' do
+    #   if params[:id].to_i == 0
+    #     return ""
+    #   end
 
-      post = db.prepare('SELECT * FROM posts WHERE id = ?').execute(params[:id].to_i).first
-
-      headers['Content-Type'] = post[:mime]
-      post[:imgdata]
-    end
+    #   post = db.prepare('SELECT * FROM posts WHERE id = ?').execute(params[:id].to_i).first
+    #   ext = case post[:mime]
+    #   when 'image/jpeg'
+    #     'jpg'
+    #   when 'image/png'
+    #     'png'
+    #   when 'image/gif'
+    #     'gif'
+    #   end
+    #   redirect "/image/#{params[:id].to_i}.#{ext}"
+    # end
 
     post '/comment' do
       unless session[:user] && session[:user][:id]
@@ -315,16 +331,15 @@ module Isuconp
         redirect '/', 302
       end
 
-      posts_all = db.query('SELECT * FROM `posts` ORDER BY `created_at` DESC')
-      comments_all = db.query('SELECT * FROM `comments` ORDER BY `created_at` DESC')
+      posts_all = db.prepare('SELECT * FROM `posts` WHERE user_id = ? ORDER BY `id` DESC').execute(session[:user][:id])
+      posts = posts_all
+      if posts_all.size > 0
+        comments_all = db.prepare('SELECT * FROM `comments` WHERE post_id IN (%s) ORDER BY `id` DESC' % [posts_all.map { '?' }.join(',')]).execute(*posts_all.map {|i| i[:id]})
+      else
+        comments_all = []
+      end
       posts = []
       comments = []
-
-      posts_all.each do |p|
-        if p[:user_id] == session[:user][:id]
-          posts.push(p)
-        end
-      end
 
       comments_all.each do |c|
         if c[:user_id] == session[:user][:id]

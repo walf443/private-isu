@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS posts (
   `mime` varchar(64) NOT NULL,
   `imgdata` mediumblob NOT NULL,
   `body` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `user_id` (`user_id`)
 ) DEFAULT CHARSET=utf8mb4;
 
 -- DROP TABLE IF EXISTS comments;
@@ -24,5 +25,6 @@ CREATE TABLE IF NOT EXISTS comments (
   `post_id` int NOT NULL,
   `user_id` int NOT NULL,
   `comment` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `post_id` (`post_id`)
 ) DEFAULT CHARSET=utf8mb4;

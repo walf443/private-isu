@@ -137,6 +137,7 @@ module Isuconp
           query += ' LIMIT 3'
         end
         comments = db.prepare(query).execute(*post_ids).to_a
+        comment_user_ids = comments.map {|c| c[:user_id] }
         comments_of = {}
         comments.each do |comment|
           comments_of[comment[:post_id]] ||= []
@@ -149,17 +150,17 @@ module Isuconp
           comment_count_of[count[:post_id]] = count[:count] || 0
         end
 
+        user_ids = results.to_a.map {|i| i[:user_id] }.concat(comment_user_ids).uniq
+        users = db.prepare("SELECT * FROM `users` WHERE `id` IN (#{user_ids.map { '?' }.join(', ')})").execute(*user_ids).to_a
+        user_of = {}
+        users.each do |user|
+          user_of[user[:id]] = user
+        end
+
         results.to_a.each do |post|
           post[:comment_count] = comment_count_of[post[:id]] || 0
 
           comments = comments_of[post[:id]] || []
-          user_ids = comments.map {|c| c[:user_id] }
-          user_ids.push(post[:user_id])
-          users = db.prepare("SELECT * FROM `users` WHERE `id` IN (#{user_ids.map { '?' }.join(', ')})").execute(*user_ids).to_a
-          user_of = {}
-          users.each do |user|
-            user_of[user[:id]] = user
-          end
           comments.each do |comment|
             comment[:user] = user_of[comment[:user_id]]
           end

@@ -379,7 +379,7 @@ module Isuconp
         db.prepare(query).execute(
           me[:id],
           mime,
-          image,
+          '',
           params["body"],
         )
         pid = db.last_id

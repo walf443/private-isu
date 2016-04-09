@@ -130,18 +130,25 @@ module Isuconp
 
       def make_posts(results, all_comments: false)
         posts = []
+        
+        post_ids = results.to_a.map {|i| i[:id] }
+        query = "SELECT * FROM `comments` WHERE `post_id` IN (#{post_ids.map { '?' }.join(',')}) ORDER BY `id` DESC"
+        unless all_comments
+          query += ' LIMIT 3'
+        end
+        comments = db.prepare(query).execute(*post_ids).to_a
+        comments_of = {}
+        comments.each do |comment|
+          comments_of[comment[:post_id]] ||= []
+          comments_of[comment[:post_id]] << comment
+        end
+
         results.to_a.each do |post|
           post[:comment_count] = db.prepare('SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = ?').execute(
             post[:id]
           ).first[:count]
 
-          query = 'SELECT * FROM `comments` WHERE `post_id` = ? ORDER BY `id` DESC'
-          unless all_comments
-            query += ' LIMIT 3'
-          end
-          comments = db.prepare(query).execute(
-            post[:id]
-          ).to_a
+          comments = comments_of[post[:id]] || []
           user_ids = comments.map {|c| c[:user_id] }
           user_ids.push(post[:user_id])
           users = db.prepare("SELECT * FROM `users` WHERE `id` IN (#{user_ids.map { '?' }.join(', ')})").execute(*user_ids).to_a
@@ -260,7 +267,7 @@ module Isuconp
     get '/' do
       me = get_session_user()
 
-      results = db.query('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `id` DESC')
+      results = db.query('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `id` DESC LIMIT 20')
       posts = make_posts(results)
 
       erb :index, layout: :layout, locals: { posts: posts, me: me }
@@ -275,7 +282,7 @@ module Isuconp
         return 404
       end
 
-      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `id` DESC').execute(
+      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `id` DESC LIMIT 20').execute(
         user[:id]
       )
       posts = make_posts(results)
@@ -304,7 +311,7 @@ module Isuconp
 
     get '/posts' do
       max_created_at = params['max_created_at']
-      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= ? ORDER BY `id` DESC').execute(
+      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= ? ORDER BY `id` DESC LIMIT 20').execute(
         max_created_at.nil? ? nil : Time.iso8601(max_created_at).localtime
       )
       posts = make_posts(results)

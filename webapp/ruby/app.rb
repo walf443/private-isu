@@ -98,6 +98,28 @@ module Isuconp
         end
       end
 
+      def create_image_files
+        cursor_id = 0
+        loop do
+      	  results = db.prepare('SELECT `id`, `mime`, `imgdata`  FROM `posts` WHERE id > ? ORDER BY `id` ASC LIMIT 20').execute(cursor_id).to_a
+	  results.each do |post|
+            ext = case post[:mime]
+                  when 'image/jpeg'
+                    'jpg'
+                  when 'image/png'
+                    'png'
+                  when 'image/gif'
+                    'gif'
+                  end
+	    File.open("/home/isucon/private_isu/webapp/public/image/#{post[:id]}.#{ext}", 'wb') do |f|
+              f.print(post[:imgdata])
+	    end
+            cursor_id = post[:id]
+          end
+          break if results.empty?
+        end
+      end
+
       def make_posts(results, all_comments: false)
         posts = []
         results.to_a.each do |post|
@@ -146,6 +168,11 @@ module Isuconp
 
     get '/initialize' do
       db_initialize
+      return 200
+    end
+
+    get '/create_image' do
+      create_image_files
       return 200
     end
 
@@ -302,13 +329,17 @@ module Isuconp
 
       if params['file']
         mime = ''
+        ext = ''
         # 投稿のContent-Typeからファイルのタイプを決定する
         if params["file"][:type].include? "jpeg"
           mime = "image/jpeg"
+          ext = 'jpg'
         elsif params["file"][:type].include? "png"
           mime = "image/png"
+          ext = 'png'
         elsif params["file"][:type].include? "gif"
           mime = "image/gif"
+          ext = 'gif'
         else
           flash[:notice] = '投稿できる画像形式はjpgとpngとgifだけです'
           redirect '/', 302
@@ -320,14 +351,18 @@ module Isuconp
         end
 
         params['file'][:tempfile].rewind
+        image = params["file"][:tempfile].read
         query = 'INSERT INTO `posts` (`user_id`, `mime`, `imgdata`, `body`) VALUES (?,?,?,?)'
         db.prepare(query).execute(
           me[:id],
           mime,
-          params["file"][:tempfile].read,
+          image,
           params["body"],
         )
         pid = db.last_id
+	File.open("/home/isucon/private_isu/webapp/public/image/#{pid}.#{ext}", 'wb') do |f|
+          f.print(image)
+	end
 
         redirect "/posts/#{pid}", 302
       else

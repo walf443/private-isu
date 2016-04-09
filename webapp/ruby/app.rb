@@ -155,7 +155,7 @@ module Isuconp
         end
 
         user_ids = results.to_a.map {|i| i[:user_id] }.concat(comment_user_ids).uniq
-        users = db.prepare("SELECT * FROM `users` WHERE `id` IN (#{user_ids.map { '?' }.join(', ')})").execute(*user_ids).to_a
+        users = db.prepare("SELECT `id`, `account_name`, `del_flg` FROM `users` WHERE `id` IN (#{user_ids.map { '?' }.join(', ')})").execute(*user_ids).to_a
         user_of = {}
         users.each do |user|
           user_of[user[:id]] = user

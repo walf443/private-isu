@@ -109,7 +109,7 @@ module Isuconp
       def create_image_files
         cursor_id = 0
         loop do
-      	  results = db.prepare('SELECT `id`, `mime`, `imgdata`  FROM `posts` WHERE id > ? ORDER BY `id` ASC LIMIT 20').execute(cursor_id).to_a
+      	  results = db.prepare('SELECT `id`, `mime`, `imgdata`  FROM `posts` WHERE id > ? ORDER BY `id` ASC LIMIT 25').execute(cursor_id).to_a
 	  results.each do |post|
             ext = case post[:mime]
                   when 'image/jpeg'
@@ -272,7 +272,7 @@ module Isuconp
     get '/' do
       me = get_session_user()
 
-      results = db.query('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `id` DESC LIMIT 20')
+      results = db.query('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `id` DESC LIMIT 25')
       posts = make_posts(results)
 
       erb :index, layout: :layout, locals: { posts: posts, me: me }
@@ -287,7 +287,7 @@ module Isuconp
         return 404
       end
 
-      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `id` DESC LIMIT 20').execute(
+      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = ? ORDER BY `id` DESC LIMIT 25').execute(
         user[:id]
       )
       posts = make_posts(results)
@@ -316,7 +316,7 @@ module Isuconp
 
     get '/posts' do
       max_created_at = params['max_created_at']
-      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= ? ORDER BY `id` DESC LIMIT 20').execute(
+      results = db.prepare('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= ? ORDER BY `id` DESC LIMIT 25').execute(
         max_created_at.nil? ? nil : Time.iso8601(max_created_at).localtime
       )
       posts = make_posts(results)

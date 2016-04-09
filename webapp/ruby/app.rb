@@ -143,10 +143,14 @@ module Isuconp
           comments_of[comment[:post_id]] << comment
         end
 
+	comment_counts = db.prepare("SELECT post_id, COUNT(*) AS `count` FROM `comments` WHERE `post_id` IN (#{post_ids.map { '?' }.join(',')}) GROUP BY post_id").execute(*post_ids)
+        comment_count_of = {}
+        comment_counts.each do |count|
+          comment_count_of[count[:post_id]] = count[:count] || 0
+        end
+
         results.to_a.each do |post|
-          post[:comment_count] = db.prepare('SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = ?').execute(
-            post[:id]
-          ).first[:count]
+          post[:comment_count] = comment_count_of[post[:id]] || 0
 
           comments = comments_of[post[:id]] || []
           user_ids = comments.map {|c| c[:user_id] }

@@ -4,6 +4,9 @@ require 'rack-flash'
 require 'shellwords'
 require 'digest'
 require 'rack/session/dalli'
+require 'dalli'
+
+Cache = Dalli::Client.new('/tmp/memcached.sock')
 
 module Isuconp
   class App < Sinatra::Base
@@ -90,9 +93,14 @@ module Isuconp
 
       def get_session_user()
         if session[:user]
-          db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
+          cache_key = "user:#{session[:user][:id]}"
+          user = Cache.get(cache_key)
+          return user if user
+          user = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
             session[:user][:id]
           ).first
+          Cache.set(cache_key, user)
+          user
         else
           nil
         end
@@ -302,7 +310,7 @@ module Isuconp
     end
 
     get '/posts/:id' do
-      results = db.prepare('SELECT * FROM `posts` WHERE `id` = ?').execute(
+      results = db.prepare('SELECT `id`, `user_id`, `mime`, `body`, `created_at` FROM `posts` WHERE `id` = ?').execute(
         params[:id]
       )
       posts = make_posts(results, all_comments: true)

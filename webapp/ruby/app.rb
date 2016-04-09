@@ -31,6 +31,10 @@ module Isuconp
         }
       end
 
+      def escape_html(str)
+        CGI.escapeHTML(str.to_s)
+      end
+
       def db
         return Thread.current[:isuconp_db] if Thread.current[:isuconp_db]
         client = Mysql2::Client.new(

@@ -142,16 +142,19 @@ module Isuconp
           comments = db.prepare(query).execute(
             post[:id]
           ).to_a
+          user_ids = comments.map {|c| c[:user_id] }
+          user_ids.push(post[:user_id])
+          users = db.prepare("SELECT * FROM `users` WHERE `id` IN (#{user_ids.map { '?' }.join(', ')})").execute(*user_ids).to_a
+          user_of = {}
+          users.each do |user|
+            user_of[user[:id]] = user
+          end
           comments.each do |comment|
-            comment[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
-              comment[:user_id]
-            ).first
+            comment[:user] = user_of[comment[:user_id]]
           end
           post[:comments] = comments.reverse
 
-          post[:user] = db.prepare('SELECT * FROM `users` WHERE `id` = ?').execute(
-            post[:user_id]
-          ).first
+          post[:user] = user_of[post[:user_id]]
 
           posts.push(post) if post[:user][:del_flg] == 0
           break if posts.length >= POSTS_PER_PAGE
